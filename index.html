@@ -41,7 +41,6 @@
   .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
   .panel-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
   
-  /* Panel Metrik Düzeni */
   .metrics-section { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .metrics-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; }
   .metrics-box-title { font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid var(--border); padding-bottom: 4px; margin-bottom: 8px; color: var(--primary); }
@@ -224,9 +223,9 @@
           <tr>
             <th>Personel</th>
             <th class="num">Müşteri</th>
-            <th class="num">Kart</th>
+            <th class="num">Ham Kart</th>
             <th class="num">Nakit</th>
-            <th class="num">Ciro</th>
+            <th class="num">Ham Ciro</th>
             <th class="num">Sabit Maaş</th>
             <th class="num">Prim (%)</th>
             <th class="num">Hak Edilen Prim</th>
@@ -295,7 +294,6 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  // 1. Firebase Yapılandırması
   const firebaseConfig = {
     apiKey: "AIzaSyB1whuNESO5qo5uqXLAjQN6u57NLnJd3H0",
     authDomain: "papart-35567.firebaseapp.com",
@@ -332,7 +330,6 @@
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getCurrentMonthStr = () => new Date().toISOString().slice(0, 7);
 
-  // 2. Real-time Dinleme
   onSnapshot(collection(db, "records"), (snapshot) => {
     state.records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     if (state.role === 'staff') renderStaffRecords();
@@ -364,7 +361,6 @@
   }
   loadConfig();
 
-  // Events
   document.getElementById('btn-role-staff').onclick = () => setLoginRole('staff');
   document.getElementById('btn-role-owner').onclick = () => setLoginRole('owner');
   document.getElementById('login-btn').onclick = handleLogin;
@@ -461,7 +457,6 @@
     }
   }
 
-  // PERSONEL DÜZENLEME VE KAYIT FONKSİYONLARI
   async function saveOrUpdateRecord() {
     const editId = document.getElementById('entry-edit-id').value;
     const date = document.getElementById('entry-date').value || getTodayStr();
@@ -635,21 +630,24 @@
         name: s.name, 
         baseSalary: s.baseSalary || 0,
         rate: s.commissionRate || 0, 
-        count: 0, card: 0, cash: 0, total: 0, prim: 0 
+        count: 0, rawCard: 0, cash: 0, rawTotal: 0, prim: 0 
       };
     });
 
     monthRecords.forEach(r => {
       if (!staffSummaryMap[r.staffId]) {
-        staffSummaryMap[r.staffId] = { name: r.staffName || 'Bilinmeyen', baseSalary: 0, rate: 0, count: 0, card: 0, cash: 0, total: 0, prim: 0 };
+        staffSummaryMap[r.staffId] = { name: r.staffName || 'Bilinmeyen', baseSalary: 0, rate: 0, count: 0, rawCard: 0, cash: 0, rawTotal: 0, prim: 0 };
       }
       staffSummaryMap[r.staffId].count += 1;
-      const recordCardWithMarkup = r.card + ((r.card * state.cardMarkupRate) / 100);
-      staffSummaryMap[r.staffId].card += recordCardWithMarkup;
+      
+      // HAM KART VE NAKİT HESABI
+      staffSummaryMap[r.staffId].rawCard += r.card;
       staffSummaryMap[r.staffId].cash += r.cash;
-      const recordTotal = recordCardWithMarkup + r.cash;
-      staffSummaryMap[r.staffId].total += recordTotal;
-      staffSummaryMap[r.staffId].prim += (recordTotal * staffSummaryMap[r.staffId].rate) / 100;
+      
+      // Prim hesabı doğrudan Ham Kart + Nakit üzerinden
+      const recordRawTotal = r.card + r.cash;
+      staffSummaryMap[r.staffId].rawTotal += recordRawTotal;
+      staffSummaryMap[r.staffId].prim += (recordRawTotal * staffSummaryMap[r.staffId].rate) / 100;
     });
 
     const totalPrim = Object.values(staffSummaryMap).reduce((acc, curr) => acc + curr.prim, 0);
@@ -661,7 +659,6 @@
 
     const finalNet = (cardNet + cashTotal) - (grandExpensesTotal + totalPrim + totalBaseSalary);
 
-    // PANEL METRİKLERİ YENİ DÜZENİ
     document.getElementById('m-total-customers').textContent = totalCustomers + ' Kişi';
     document.getElementById('m-card-custom-count').textContent = cardCount + ' İşlem';
     document.getElementById('m-card-raw').textContent = rawCardTotal.toLocaleString('tr-TR', {maximumFractionDigits:2}) + ' ₺';
@@ -677,14 +674,14 @@
     document.getElementById('m-total-prim').textContent = totalPrim.toLocaleString('tr-TR', {maximumFractionDigits:2}) + ' ₺';
     document.getElementById('m-final-net').textContent = finalNet.toLocaleString('tr-TR', {maximumFractionDigits:2}) + ' ₺';
 
-    // PERSONEL TABLOSU
+    // PERSONEL TABLOSU (HAM CİRO VE HAM KART ÜZERİNDEN HESAPLANIR)
     document.getElementById('owner-staff-summary-body').innerHTML = Object.values(staffSummaryMap).map(s => `
       <tr>
         <td><b>${s.name}</b></td>
         <td class="num">${s.count}</td>
-        <td class="num">${s.card.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
+        <td class="num">${s.rawCard.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
         <td class="num">${s.cash.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
-        <td class="num" style="color:var(--primary);">${s.total.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
+        <td class="num" style="color:var(--primary);">${s.rawTotal.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
         <td class="num">${s.baseSalary.toLocaleString('tr-TR')} ₺</td>
         <td class="num">%${s.rate}</td>
         <td class="num" style="color:var(--purple);">${s.prim.toLocaleString('tr-TR', {maximumFractionDigits:2})} ₺</td>
@@ -692,7 +689,6 @@
       </tr>
     `).join('');
 
-    // PERSONEL DÜZENLEME LİSTESİ (KULLANICI ADI & PIN)
     document.getElementById('owner-staff-list').innerHTML = state.staffList.map(s => `
       <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:6px;">
         <div style="display:flex; gap:6px; align-items:center;">
@@ -710,7 +706,6 @@
       </div>
     `).join('');
 
-    // ARAMA VE TARİH FİLTRELİ TABLO
     window.currentFilteredRecords = monthRecords.filter(r => {
       const matchesSearch = !searchQuery || (
         (r.customer && r.customer.toLowerCase().includes(searchQuery)) ||
@@ -741,7 +736,6 @@
     }).join('');
   }
 
-  // EXCEL OLARAK DIŞA AKTAR
   function exportToExcel() {
     if (!window.currentFilteredRecords || window.currentFilteredRecords.length === 0) {
       alert("İndirilecek kayıt bulunamadı!");
