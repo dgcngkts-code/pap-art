@@ -225,7 +225,7 @@
             <th class="num">Müşteri</th>
             <th class="num">Ham Kart</th>
             <th class="num">Nakit</th>
-            <th class="num">Ham Ciro</th>
+            <th class="num">Ham Ciro (Nakit+Ham Kart)</th>
             <th class="num">Sabit Maaş</th>
             <th class="num">Prim (%)</th>
             <th class="num">Hak Edilen Prim</th>
@@ -564,7 +564,7 @@
 
     if (!name || !pin) { alert("İsim ve PIN boş bırakılamaz."); return; }
 
-    await updateDoc(doc(db, "staff", id), { name, pin, baseSalary: salary, commissionRate: rate });
+    await updateDoc(doc(db, "staff"), { name, pin, baseSalary: salary, commissionRate: rate });
     alert("Personel bilgileri güncellendi!");
   };
 
@@ -640,18 +640,28 @@
       }
       staffSummaryMap[r.staffId].count += 1;
       
-      // HAM KART VE NAKİT HESABI
-      staffSummaryMap[r.staffId].rawCard += r.card;
-      staffSummaryMap[r.staffId].cash += r.cash;
+      // HAM KART VE NAKİT BAZLI HESAPLAMA
+      const rawCardVal = r.card || 0;
+      const cashVal = r.cash || 0;
       
-      // Prim hesabı doğrudan Ham Kart + Nakit üzerinden
-      const recordRawTotal = r.card + r.cash;
+      staffSummaryMap[r.staffId].rawCard += rawCardVal;
+      staffSummaryMap[r.staffId].cash += cashVal;
+      
+      // Ham Ciro = Nakit + Ham Kart
+      const recordRawTotal = rawCardVal + cashVal;
       staffSummaryMap[r.staffId].rawTotal += recordRawTotal;
-      staffSummaryMap[r.staffId].prim += (recordRawTotal * staffSummaryMap[r.staffId].rate) / 100;
+      
+      // Prim Kesinlikle (Nakit + Ham Kart) Tutarının % Oranıdır
+      staffSummaryMap[r.staffId].prim += (recordRawTotal * (staffSummaryMap[r.staffId].rate || 0)) / 100;
     });
 
-    const totalPrim = Object.values(staffSummaryMap).reduce((acc, curr) => acc + curr.prim, 0);
-    const totalBaseSalary = Object.values(staffSummaryMap).reduce((acc, curr) => acc + curr.baseSalary, 0);
+    // DAĞITILACAK TOPLAM PRİM VE MAAŞ
+    let totalPrim = 0;
+    let totalBaseSalary = 0;
+    Object.values(staffSummaryMap).forEach(s => {
+      totalPrim += s.prim;
+      totalBaseSalary += s.baseSalary;
+    });
     
     const shopExpensesTotal = monthExpenses.reduce((s, e) => s + e.amount, 0);
     const fixedExpensesTotal = state.fixedExpenses.reduce((s, e) => s + (e.amount || 0), 0);
@@ -681,10 +691,10 @@
         <td class="num">${s.count}</td>
         <td class="num">${s.rawCard.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
         <td class="num">${s.cash.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
-        <td class="num" style="color:var(--primary);">${s.rawTotal.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
+        <td class="num" style="color:var(--primary); font-weight:bold;">${s.rawTotal.toLocaleString('tr-TR', {maximumFractionDigits:0})} ₺</td>
         <td class="num">${s.baseSalary.toLocaleString('tr-TR')} ₺</td>
         <td class="num">%${s.rate}</td>
-        <td class="num" style="color:var(--purple);">${s.prim.toLocaleString('tr-TR', {maximumFractionDigits:2})} ₺</td>
+        <td class="num" style="color:var(--purple); font-weight:bold;">${s.prim.toLocaleString('tr-TR', {maximumFractionDigits:2})} ₺</td>
         <td class="num" style="color:var(--cash-green); font-weight:bold;">${(s.baseSalary + s.prim).toLocaleString('tr-TR', {maximumFractionDigits:2})} ₺</td>
       </tr>
     `).join('');
