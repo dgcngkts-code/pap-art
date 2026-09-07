@@ -556,16 +556,28 @@
   window.deleteExpenseDoc = async (id) => { await deleteDoc(doc(db, "expenses", id)); };
   window.deleteStaffDoc = async (id) => { await deleteDoc(doc(db, "staff", id)); };
   
+  // DÜZELTİLEN PERSONEL GÜNCELLEME FONKSİYONU
   window.updateStaffFullDetails = async (id) => {
-    const name = document.getElementById(`s-name-${id}`).value.trim();
-    const pin = document.getElementById(`s-pin-${id}`).value.trim();
-    const salary = parseFloat(document.getElementById(`s-sal-${id}`).value) || 0;
-    const rate = parseFloat(document.getElementById(`s-rat-${id}`).value) || 0;
+    try {
+      const name = document.getElementById(`s-name-${id}`).value.trim();
+      const pin = document.getElementById(`s-pin-${id}`).value.trim();
+      const salary = parseFloat(document.getElementById(`s-sal-${id}`).value) || 0;
+      const rate = parseFloat(document.getElementById(`s-rat-${id}`).value) || 0;
 
-    if (!name || !pin) { alert("İsim ve PIN boş bırakılamaz."); return; }
+      if (!name || !pin) { alert("İsim ve PIN boş bırakılamaz."); return; }
 
-    await updateDoc(doc(db, "staff"), { name, pin, baseSalary: salary, commissionRate: rate });
-    alert("Personel bilgileri güncellendi!");
+      // Eksik olan id parametresi buraya eklendi (doc(db, "staff", id))
+      await updateDoc(doc(db, "staff", id), { 
+        name: name, 
+        pin: pin, 
+        baseSalary: salary, 
+        commissionRate: rate 
+      });
+      alert("Personel bilgileri başarıyla güncellendi!");
+    } catch (error) {
+      console.error("Personel güncelleme hatası:", error);
+      alert("Güncelleme yapılırken hata oluştu: " + error.message);
+    }
   };
 
   window.editRecordTrigger = (id) => editRecord(id);
@@ -640,22 +652,18 @@
       }
       staffSummaryMap[r.staffId].count += 1;
       
-      // HAM KART VE NAKİT BAZLI HESAPLAMA
       const rawCardVal = r.card || 0;
       const cashVal = r.cash || 0;
       
       staffSummaryMap[r.staffId].rawCard += rawCardVal;
       staffSummaryMap[r.staffId].cash += cashVal;
       
-      // Ham Ciro = Nakit + Ham Kart
       const recordRawTotal = rawCardVal + cashVal;
       staffSummaryMap[r.staffId].rawTotal += recordRawTotal;
       
-      // Prim Kesinlikle (Nakit + Ham Kart) Tutarının % Oranıdır
       staffSummaryMap[r.staffId].prim += (recordRawTotal * (staffSummaryMap[r.staffId].rate || 0)) / 100;
     });
 
-    // DAĞITILACAK TOPLAM PRİM VE MAAŞ
     let totalPrim = 0;
     let totalBaseSalary = 0;
     Object.values(staffSummaryMap).forEach(s => {
@@ -684,7 +692,6 @@
     document.getElementById('m-total-prim').textContent = totalPrim.toLocaleString('tr-TR', {maximumFractionDigits:2}) + ' ₺';
     document.getElementById('m-final-net').textContent = finalNet.toLocaleString('tr-TR', {maximumFractionDigits:2}) + ' ₺';
 
-    // PERSONEL TABLOSU (HAM CİRO VE HAM KART ÜZERİNDEN HESAPLANIR)
     document.getElementById('owner-staff-summary-body').innerHTML = Object.values(staffSummaryMap).map(s => `
       <tr>
         <td><b>${s.name}</b></td>
