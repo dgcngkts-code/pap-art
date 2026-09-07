@@ -33,7 +33,7 @@
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
-  .panel-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .panel-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
   .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
   .metric-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; }
   .metric-title { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
@@ -43,6 +43,8 @@
   td { padding: 6px; border-bottom: 1px solid var(--border); }
   td.num { font-family: monospace; font-weight: 600; text-align: right; }
   .hidden { display: none !important; }
+  .fixed-expenses-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .fixed-expense-item { display: flex; gap: 4px; align-items: center; }
 </style>
 </head>
 <body>
@@ -51,7 +53,7 @@
   <header id="main-header" class="hidden">
     <div>
       <h1>Pap Art Studio</h1>
-      <div style="font-size:0.75rem; color:var(--text-muted);">Canlı Veri Senkronizasyonu</div>
+      <div style="font-size:0.75rem; color:var(--text-muted);">Canlı Yönetim Paneli</div>
     </div>
     <div class="user-badge">
       <span id="user-display-name">...</span>
@@ -109,38 +111,91 @@
 
   <!-- İŞLETMECİ EKRANI -->
   <div id="view-owner" class="hidden">
-    <div class="metrics-grid">
-      <div class="metric-card"><div class="metric-title">Toplam Ciro</div><div class="metric-value" id="m-net-revenue" style="color:var(--primary);">0 ₺</div></div>
-      <div class="metric-card"><div class="metric-title">Kart (POS)</div><div class="metric-value" id="m-card-gross" style="color:var(--card-blue);">0 ₺</div></div>
-      <div class="metric-card"><div class="metric-title">Nakit</div><div class="metric-value" id="m-cash-total" style="color:var(--cash-green);">0 ₺</div></div>
-      <div class="metric-card"><div class="metric-title">Dükkan Gideri</div><div class="metric-value" id="m-shop-expenses" style="color:var(--danger);">0 ₺</div></div>
+    <!-- AY FİLTRESİ VE AYARLAR -->
+    <div class="panel" style="background:#e2e8f0;">
+      <div class="grid-2">
+        <div class="field" style="margin-bottom:0;">
+          <label>İncelenecek Ay</label>
+          <input type="month" id="owner-month-filter">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>POS Komisyon Oranı (%)</label>
+          <input type="number" id="pos-rate-input" step="0.1" value="3.5">
+        </div>
+      </div>
     </div>
 
+    <!-- METRİKLER -->
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="metric-title">Ağırlanan Müşteri</div><div class="metric-value" id="m-total-customers" style="color:var(--card-blue);">0 Müşteri</div></div>
+      <div class="metric-card"><div class="metric-title">Toplam Ciro (Brüt)</div><div class="metric-value" id="m-net-revenue" style="color:var(--primary);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Kart (Brüt)</div><div class="metric-value" id="m-card-gross" style="color:var(--card-blue);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">POS Komisyon Kesintisi</div><div class="metric-value" id="m-pos-fee" style="color:var(--danger);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Net Kart Tutarı</div><div class="metric-value" id="m-card-net" style="color:var(--purple);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Nakit</div><div class="metric-value" id="m-cash-total" style="color:var(--cash-green);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Dağıtılacak Personel Primi</div><div class="metric-value" id="m-total-prim" style="color:var(--purple);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Sabit Giderler</div><div class="metric-value" id="m-fixed-expenses" style="color:var(--expense-orange);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">Anlık Dükkan Gideri</div><div class="metric-value" id="m-shop-expenses" style="color:var(--danger);">0 ₺</div></div>
+      <div class="metric-card"><div class="metric-title">İşletme Net Kalan</div><div class="metric-value" id="m-final-net" style="color:var(--cash-green);">0 ₺</div></div>
+    </div>
+
+    <!-- PERSONEL BAZLI AYLIK CİRO, PERFORMANS VE PRİM TABLOSU -->
     <div class="panel">
-      <div class="panel-title">İşletme Gideri Ekle</div>
+      <div class="panel-title">Personel Bazlı Performans ve Müşteri Sayıları</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Personel</th>
+            <th class="num">Ağırladığı Müşteri</th>
+            <th class="num">Kart</th>
+            <th class="num">Nakit</th>
+            <th class="num">Toplam Ciro</th>
+            <th class="num">Prim Oranı</th>
+            <th class="num">Hak Edilen Prim</th>
+          </tr>
+        </thead>
+        <tbody id="owner-staff-summary-body"></tbody>
+      </table>
+    </div>
+
+    <!-- 10 ADET SABİT GİDER TANIMLARI -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>Sabit Gider Tanımları (Aylık 10 Sabit Gider)</span>
+        <button class="btn-sm" id="save-fixed-expenses-btn" style="background:var(--card-blue); color:white;">Giderleri Kaydet</button>
+      </div>
+      <div class="fixed-expenses-grid" id="fixed-expenses-container"></div>
+    </div>
+
+    <!-- ANLIK GİDER EKLE -->
+    <div class="panel">
+      <div class="panel-title">Anlık Dükkan Gideri Ekle</div>
       <div class="grid-3">
         <div class="field"><input type="date" id="exp-date"></div>
-        <div class="field"><input type="text" id="exp-desc" placeholder="Açıklama (Kira vb.)"></div>
+        <div class="field"><input type="text" id="exp-desc" placeholder="Açıklama (Malzeme vb.)"></div>
         <div class="field"><input type="number" id="exp-amount" placeholder="Tutar ₺"></div>
       </div>
       <button class="btn" id="add-expense-btn">Gider Ekle</button>
     </div>
 
+    <!-- SEÇİLEN AYIN İŞLEMLERİ VE GİDERLERİ -->
     <div class="panel">
-      <div class="panel-title">Tüm Personellerin Canlı Verileri</div>
+      <div class="panel-title">Aylık Tüm Kayıtlar</div>
       <table>
         <thead>
-          <tr><th>Tarih</th><th>Personel</th><th>Müşteri/İşlem</th><th class="num">Tutar</th><th style="text-align:right;">Sil</th></tr>
+          <tr><th>Tarih</th><th>Personel</th><th>Müşteri/İşlem</th><th class="num">Kart</th><th class="num">Nakit</th><th class="num">Toplam</th><th style="text-align:right;">Sil</th></tr>
         </thead>
         <tbody id="owner-records-body"></tbody>
       </table>
     </div>
 
+    <!-- PERSONEL TANIMLAMA VE PRİM AYARI -->
     <div class="panel">
-      <div class="panel-title">Personel Tanımla</div>
-      <div class="grid-2">
+      <div class="panel-title">Personel Tanımla & Prim Ayarları</div>
+      <div class="grid-3">
         <div class="field"><input type="text" id="new-s-name" placeholder="Personel Adı"></div>
         <div class="field"><input type="password" id="new-s-pin" placeholder="PIN (Örn: 1234)"></div>
+        <div class="field"><input type="number" id="new-s-rate" placeholder="Prim Oranı % (Örn: 10)" step="0.5"></div>
       </div>
       <button class="btn" id="add-staff-btn">Personeli Kaydet</button>
       <div id="owner-staff-list" style="margin-top:10px;"></div>
@@ -150,7 +205,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   // 1. Firebase Yapılandırması
   const firebaseConfig = {
@@ -167,17 +222,32 @@
   const db = getFirestore(app);
 
   const DEFAULT_OWNER_PIN = "0000";
+  const defaultFixedExpenses = [
+    { name: 'Kira', amount: 0 },
+    { name: 'Elektrik', amount: 0 },
+    { name: 'Su', amount: 0 },
+    { name: 'Doğalgaz', amount: 0 },
+    { name: 'İnternet', amount: 0 },
+    { name: 'Muhasebe', amount: 0 },
+    { name: 'Aidat', amount: 0 },
+    { name: 'Sistem / Yazılım', amount: 0 },
+    { name: 'Yemek / Mutfak', amount: 0 },
+    { name: 'Diğer Sabit Gider', amount: 0 }
+  ];
+
   let state = {
     role: 'staff',
     activeUser: null,
-    config: { posTax: 10, vat: 20, targetRevenue: 200000 },
     staffList: [],
     records: [],
-    expenses: []
+    expenses: [],
+    fixedExpenses: defaultFixedExpenses,
+    posRate: 3.5
   };
 
   let loginRoleState = 'staff';
   const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getCurrentMonthStr = () => new Date().toISOString().slice(0, 7);
 
   // 2. Gerçek Zamanlı Dinleme (Real-time Sync)
   onSnapshot(collection(db, "records"), (snapshot) => {
@@ -197,6 +267,20 @@
     if (state.role === 'owner') renderOwnerDashboard();
   });
 
+  // Sabit Giderleri ve POS Oranını Yükle
+  async function loadConfig() {
+    try {
+      const docRef = doc(db, "settings", "config");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.fixedExpenses) state.fixedExpenses = data.fixedExpenses;
+        if (data.posRate !== undefined) state.posRate = data.posRate;
+      }
+    } catch(e) { console.error("Ayar yükleme hatası:", e); }
+  }
+  loadConfig();
+
   // UI Event Handler'ları
   document.getElementById('btn-role-staff').onclick = () => setLoginRole('staff');
   document.getElementById('btn-role-owner').onclick = () => setLoginRole('owner');
@@ -205,6 +289,12 @@
   document.getElementById('save-record-btn').onclick = saveRecord;
   document.getElementById('add-expense-btn').onclick = addExpense;
   document.getElementById('add-staff-btn').onclick = addNewStaff;
+  document.getElementById('save-fixed-expenses-btn').onclick = saveFixedExpenses;
+  document.getElementById('owner-month-filter').onchange = renderOwnerDashboard;
+  document.getElementById('pos-rate-input').onchange = (e) => {
+    state.posRate = parseFloat(e.target.value) || 0;
+    renderOwnerDashboard();
+  };
 
   function setLoginRole(role) {
     loginRoleState = role;
@@ -258,6 +348,9 @@
       } else if (view === 'owner') {
         document.getElementById('view-owner').classList.remove('hidden');
         document.getElementById('exp-date').value = getTodayStr();
+        document.getElementById('owner-month-filter').value = getCurrentMonthStr();
+        document.getElementById('pos-rate-input').value = state.posRate;
+        renderFixedExpensesInputs();
         renderOwnerDashboard();
       }
     }
@@ -300,16 +393,39 @@
   async function addNewStaff() {
     const name = document.getElementById('new-s-name').value.trim();
     const pin = document.getElementById('new-s-pin').value.trim();
+    const commissionRate = parseFloat(document.getElementById('new-s-rate').value) || 0;
+
     if (!name || !pin) return;
 
-    await addDoc(collection(db, "staff"), { name, pin });
+    await addDoc(collection(db, "staff"), { name, pin, commissionRate });
     document.getElementById('new-s-name').value = '';
     document.getElementById('new-s-pin').value = '';
+    document.getElementById('new-s-rate').value = '';
+  }
+
+  async function saveFixedExpenses() {
+    const updated = [];
+    for(let i = 0; i < 10; i++) {
+      const name = document.getElementById(`fe-name-${i}`).value || `Gider ${i+1}`;
+      const amount = parseFloat(document.getElementById(`fe-amount-${i}`).value) || 0;
+      updated.push({ name, amount });
+    }
+    state.fixedExpenses = updated;
+    await setDoc(doc(db, "settings", "config"), {
+      fixedExpenses: updated,
+      posRate: state.posRate
+    }, { merge: true });
+
+    alert("Sabit giderler kaydedildi!");
+    renderOwnerDashboard();
   }
 
   window.deleteRecordDoc = async (id) => { await deleteDoc(doc(db, "records", id)); };
   window.deleteExpenseDoc = async (id) => { await deleteDoc(doc(db, "expenses", id)); };
   window.deleteStaffDoc = async (id) => { await deleteDoc(doc(db, "staff", id)); };
+  window.updateStaffCommission = async (id, rate) => {
+    await updateDoc(doc(db, "staff", id), { commissionRate: parseFloat(rate) || 0 });
+  };
 
   function renderStaffRecords() {
     const tbody = document.getElementById('staff-records-body');
@@ -324,28 +440,118 @@
     `).join('');
   }
 
+  function renderFixedExpensesInputs() {
+    const container = document.getElementById('fixed-expenses-container');
+    container.innerHTML = state.fixedExpenses.map((fe, index) => `
+      <div class="fixed-expense-item">
+        <input type="text" id="fe-name-${index}" value="${fe.name}" placeholder="Gider Adı">
+        <input type="number" id="fe-amount-${index}" value="${fe.amount}" placeholder="₺" style="width:90px;">
+      </div>
+    `).join('');
+  }
+
   function renderOwnerDashboard() {
+    const selectedMonth = document.getElementById('owner-month-filter').value || getCurrentMonthStr();
+
+    // Seçilen Aya Göre Filtreleme
+    const monthRecords = state.records.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const monthExpenses = state.expenses.filter(e => e.date && e.date.startsWith(selectedMonth));
+
+    const totalCustomersCount = monthRecords.length;
+
     let cardTotal = 0, cashTotal = 0;
-    state.records.forEach(r => { cardTotal += r.card; cashTotal += r.cash; });
-    const expTotal = state.expenses.reduce((s, e) => s + e.amount, 0);
+    monthRecords.forEach(r => { cardTotal += r.card; cashTotal += r.cash; });
 
-    document.getElementById('m-net-revenue').textContent = (cardTotal + cashTotal).toLocaleString() + ' ₺';
+    const posFee = (cardTotal * state.posRate) / 100;
+    const cardNet = cardTotal - posFee;
+    const grossTotal = cardTotal + cashTotal;
+
+    // Personel Performansı, Müşteri Sayısı ve Prim Hesabı
+    const staffSummaryMap = {};
+    state.staffList.forEach(s => {
+      staffSummaryMap[s.id] = { 
+        name: s.name, 
+        rate: s.commissionRate || 0, 
+        count: 0, 
+        card: 0, 
+        cash: 0, 
+        total: 0, 
+        prim: 0 
+      };
+    });
+
+    monthRecords.forEach(r => {
+      if (!staffSummaryMap[r.staffId]) {
+        staffSummaryMap[r.staffId] = { 
+          name: r.staffName || 'Bilinmeyen', 
+          rate: 0, 
+          count: 0, 
+          card: 0, 
+          cash: 0, 
+          total: 0, 
+          prim: 0 
+        };
+      }
+      staffSummaryMap[r.staffId].count += 1;
+      staffSummaryMap[r.staffId].card += r.card;
+      staffSummaryMap[r.staffId].cash += r.cash;
+      const t = r.card + r.cash;
+      staffSummaryMap[r.staffId].total += t;
+      staffSummaryMap[r.staffId].prim += (t * staffSummaryMap[r.staffId].rate) / 100;
+    });
+
+    const totalPrim = Object.values(staffSummaryMap).reduce((acc, curr) => acc + curr.prim, 0);
+    const shopExpensesTotal = monthExpenses.reduce((s, e) => s + e.amount, 0);
+    const fixedExpensesTotal = state.fixedExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+    
+    // Net Kalan = (Net Kart + Nakit) - (Sabit Giderler + Dükkan Giderleri + Toplam Prim)
+    const finalNet = (cardNet + cashTotal) - (shopExpensesTotal + fixedExpensesTotal + totalPrim);
+
+    // Metrikleri Güncelle
+    document.getElementById('m-total-customers').textContent = totalCustomersCount + ' Kişi';
+    document.getElementById('m-net-revenue').textContent = grossTotal.toLocaleString() + ' ₺';
     document.getElementById('m-card-gross').textContent = cardTotal.toLocaleString() + ' ₺';
+    document.getElementById('m-pos-fee').textContent = posFee.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' ₺';
+    document.getElementById('m-card-net').textContent = cardNet.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' ₺';
     document.getElementById('m-cash-total').textContent = cashTotal.toLocaleString() + ' ₺';
-    document.getElementById('m-shop-expenses').textContent = expTotal.toLocaleString() + ' ₺';
+    document.getElementById('m-total-prim').textContent = totalPrim.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' ₺';
+    document.getElementById('m-fixed-expenses').textContent = fixedExpensesTotal.toLocaleString() + ' ₺';
+    document.getElementById('m-shop-expenses').textContent = shopExpensesTotal.toLocaleString() + ' ₺';
+    document.getElementById('m-final-net').textContent = finalNet.toLocaleString('tr-TR', {maximumFractionDigits: 2}) + ' ₺';
 
+    // Personel Performans ve Prim Tablosu
+    document.getElementById('owner-staff-summary-body').innerHTML = Object.values(staffSummaryMap).map(s => `
+      <tr>
+        <td><b>${s.name}</b></td>
+        <td class="num">${s.count} Müşteri</td>
+        <td class="num">${s.card.toLocaleString()} ₺</td>
+        <td class="num">${s.cash.toLocaleString()} ₺</td>
+        <td class="num" style="color:var(--primary);">${s.total.toLocaleString()} ₺</td>
+        <td class="num">%${s.rate}</td>
+        <td class="num" style="color:var(--purple); font-weight:bold;">${s.prim.toLocaleString('tr-TR', {maximumFractionDigits: 2})} ₺</td>
+      </tr>
+    `).join('');
+
+    // Personel Yönetim Listesi
     document.getElementById('owner-staff-list').innerHTML = state.staffList.map(s => `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
         <span><b>${s.name}</b> (PIN: ${s.pin})</span>
-        <button class="btn-sm btn-delete" onclick="window.deleteStaffDoc('${s.id}')">Sil</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <label style="font-size:0.75rem;">Prim %:</label>
+          <input type="number" value="${s.commissionRate || 0}" step="0.5" style="width:60px; padding:2px 4px;" onchange="window.updateStaffCommission('${s.id}', this.value)">
+          <button class="btn-sm btn-delete" onclick="window.deleteStaffDoc('${s.id}')">Sil</button>
+        </div>
       </div>
     `).join('');
 
-    document.getElementById('owner-records-body').innerHTML = state.records.map(r => `
+    // Aylık İşlem Kayıtları Tablosu
+    document.getElementById('owner-records-body').innerHTML = monthRecords.map(r => `
       <tr>
         <td>${r.date}</td>
         <td><b>${r.staffName}</b></td>
         <td><b>${r.customer}</b> (${r.service})</td>
+        <td class="num">${r.card.toLocaleString()} ₺</td>
+        <td class="num">${r.cash.toLocaleString()} ₺</td>
         <td class="num">${(r.card + r.cash).toLocaleString()} ₺</td>
         <td style="text-align:right;"><button class="btn-sm btn-delete" onclick="window.deleteRecordDoc('${r.id}')">Sil</button></td>
       </tr>
